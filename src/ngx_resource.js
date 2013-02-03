@@ -96,6 +96,7 @@ angular.module('ngxResource', ['ng']).
     this.config = {
       actions: {
         'get':    { method:'GET' },
+        'update': { method:'PUT' },
         'save':   { method:'POST' },
         'query':  { method:'GET', collection:true },
         'remove': { method:'DELETE' },
@@ -205,14 +206,6 @@ angular.module('ngxResource', ['ng']).
           };
 
         });
-
-//        Resource.bind = function(additionalParamDefaults){
-//          return ResourceFactory({
-//            url: url,
-//            params: extend({}, paramDefaults, additionalParamDefaults),
-//            actions: actions
-//          });
-//        };
 
         return Resource;
       }
