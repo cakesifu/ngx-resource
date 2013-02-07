@@ -4,7 +4,7 @@
 
 
 // base path, that will be used to resolve files and exclude
-basePath = './';
+basePath = '';
 
 
 // list of files / patterns to load in the browser
@@ -29,7 +29,7 @@ exclude = [
 
 // test results reporter to use
 // possible values: 'dots', 'progress', 'junit'
-reporters = ['progress'];
+reporters = ['progress', 'coverage'];
 
 
 // web server port
@@ -73,5 +73,11 @@ captureTimeout = 5000;
 singleRun = false;
 
 preprocessors = {
-  '**/*.coffee': 'coffee'
+  '**/*.coffee': 'coffee',
+  '**/src/**/*.js': 'coverage'
+};
+
+coverageReporter = {
+  type: 'html',
+  dir: 'coverage/'
 };

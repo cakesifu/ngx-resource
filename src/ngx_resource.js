@@ -2,123 +2,34 @@
 
 /**
  * @todo should be able to specify associations
+ * @todo use promises for http communication
+ * @todo use multiple serializers/deserializers
  */
-angular.module('ngxResource', ['ng']).
-  factory('Route', function() {
-
-  var forEach = angular.forEach;
-
-  /**
-     * We need our custom method because encodeURIComponent is too aggressive and doesn't follow
-     * http://www.ietf.org/rfc/rfc3986.txt with regards to the character set (pchar) allowed in path
-     * segments:
-     *    segment       = *pchar
-     *    pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
-     *    pct-encoded   = "%" HEXDIG HEXDIG
-     *    unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
-     *    sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
-     *                     / "*" / "+" / "," / ";" / "="
-     */
-    function encodeUriSegment(val) {
-      return encodeUriQuery(val, true).
-        replace(/%26/gi, '&').
-        replace(/%3D/gi, '=').
-        replace(/%2B/gi, '+');
-    }
-
-
-    /**
-     * This method is intended for encoding *key* or *value* parts of query component. We need a custom
-     * method becuase encodeURIComponent is too agressive and encodes stuff that doesn't have to be
-     * encoded per http://tools.ietf.org/html/rfc3986:
-     *    query       = *( pchar / "/" / "?" )
-     *    pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
-     *    unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
-     *    pct-encoded   = "%" HEXDIG HEXDIG
-     *    sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
-     *                     / "*" / "+" / "," / ";" / "="
-     */
-    function encodeUriQuery(val, pctEncodeSpaces) {
-      return encodeURIComponent(val).
-        replace(/%40/gi, '@').
-        replace(/%3A/gi, ':').
-        replace(/%24/g, '$').
-        replace(/%2C/gi, ',').
-        replace((pctEncodeSpaces ? null : /%20/g), '+');
-    }
-
-    function Route(template, defaults) {
-      this.template = template = template + '#';
-      this.defaults = defaults || {};
-      var urlParams = this.urlParams = {};
-      forEach(template.split(/\W/), function(param){
-        if (param && template.match(new RegExp("[^\\\\]:" + param + "\\W"))) {
-          urlParams[param] = true;
-        }
-      });
-      this.template = template.replace(/\\:/g, ':');
-    }
-
-    Route.prototype = {
-      url: function(params) {
-        var self = this,
-            url = this.template,
-            val,
-            encodedVal;
-
-        params = params || {};
-        forEach(this.urlParams, function(_, urlParam){
-          val = params.hasOwnProperty(urlParam) ? params[urlParam] : self.defaults[urlParam];
-          if (angular.isDefined(val) && val !== null) {
-            encodedVal = encodeUriSegment(val);
-            url = url.replace(new RegExp(":" + urlParam + "(\\W)", "g"), encodedVal + "$1");
-          } else {
-            url = url.replace(new RegExp("/?:" + urlParam + "(\\W)", "g"), '$1');
-          }
-        });
-        url = url.replace(/\/?#$/, '');
-        var query = [];
-        forEach(params, function(value, key){
-          if (!self.urlParams[key]) {
-            query.push(encodeUriQuery(key) + '=' + encodeUriQuery(value));
-          }
-        });
-        query.sort();
-        url = url.replace(/\/*$/, '');
-        return url + (query.length ? '?' + query.join('&') : '');
-      }
-    };
-
-    return Route;
-  }).
+angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
   provider('$resource', function() {
 
     this.config = {
       actions: {
         'get':    { method:'GET' },
         'update': { method:'PUT' },
+        'create': { method:'POST' },
         'save':   { method:'POST' },
-        'query':  { method:'GET', collection:true },
-        'remove': { method:'DELETE' },
-        'delete': { method:'DELETE' }
+        'query':  { method:'GET' },
+        'remove': { method:'DELETE' }
       },
-      serializer: function(obj, options) {
-        return obj;
-      },
-      deserializer: function(data, options) {
-        return data;
-      }
+      headers: {},
+      serializers: [],
+      deserializers: []
     };
 
-    this.$get = ['$http', '$parse', 'Route', function($http, $parse, Route) {
+    this.$get = ['$http', '$parse', '$injector', 'Route', function($http, $parse, $injector, Route) {
 
-      var config = this.config;
-
-      var noop = angular.noop,
-          forEach = angular.forEach,
-          extend = angular.extend,
+      var extend = angular.extend,
           copy = angular.copy,
           isFunction = angular.isFunction,
+          isDefined = angular.isDefined,
+          isArray = angular.isArray,
+          isObject = angular.isObject,
           getter = function(obj, path) {
             return $parse(path)(obj);
           };
@@ -126,10 +37,11 @@ angular.module('ngxResource', ['ng']).
       function extractParams(data) {
         var ids = {},
             params = Array.prototype.slice.call(arguments, 1);
+
         params.unshift({});
         params = extend.apply(angular, params);
 
-        forEach(params, function(value, key){
+        angular.forEach(params, function(value, key){
           if (isFunction(value)) {
             value = value();
           }
@@ -139,70 +51,93 @@ angular.module('ngxResource', ['ng']).
         return ids;
       }
 
+      function callInterceptors(interceptors, data, config) {
+        angular.forEach(interceptors, function (interceptor) {
+          var interceptorFunc =  angular.isString(interceptor) ? $injector.get(interceptor)
+                                                               : $injector.invoke(interceptor);
+          data = interceptorFunc(data, config)
+        });
+        return data;
+      }
+
+      function processResponse(promise, Resource, config) {
+        return promise.then(function(response) {
+          var result,
+              data = callInterceptors(config.deserializers, response.data, config);
+
+          if (isArray(data)) {
+            result = [];
+
+            angular.forEach(data, function (value) {
+              result.push(new Resource(value));
+            });
+          } else if (isObject(data)) {
+            result = new Resource(data);
+          } else {
+            result = data;
+          }
+
+          return result;
+        });
+      }
+
+      var providerConfig = this.config;
+
       function ResourceFactory(options) {
 
         var url = options.url || options,
             route = new Route(url),
-            actions = extend({}, config.actions, options.actions || {}),
-            paramDefaults = options.params || {},
-            serializer = options.serializer || config.serializer,
-            deserializer = options.deserializer || config.deserializer;
+            actions = extend({}, providerConfig.actions, options.actions || {}),
+            paramDefaults = options.params || {};
 
         function Resource(value) {
-          value = deserializer(value, options);
           copy(value || {}, this);
         }
 
-        forEach(actions, function(action, name) {
-          var hasBody;
+        if (isDefined(options.actions)) {
+          options.actions = extend({}, providerConfig.actions, options.actions);
+        }
+
+        if (isDefined(options.extraHeaders)) {
+          options.headers = extend(options.headers || {}, providerConfig.headers, options.extraHeaders);
+        }
+
+        Resource.config = extend({}, providerConfig, options);
+
+        angular.forEach(actions, function(action, name) {
           action.method = angular.uppercase(action.method);
 
-          if (action.hasOwnProperty('body')) {
-            hasBody = action.body
-          } else {
-            hasBody = action.method == 'POST' || action.method == 'PUT' || action.method == 'PATCH';
-          }
+          Resource[name] = function(params, data) {
+            data = data || {};
+            params = extractParams(data, paramDefaults, action.params || {}, params || {})
 
-          Resource[name] = function(args) {
-            args = args || {};
+            var url = route.url(params),
+                promise;
 
-            var params = args.params || {},
-                data = args.data || {},
-                success = args.success || noop,
-                error = args.error,
-                value = this instanceof Resource ? this : (action.collection ? [] : new Resource(data));
-
-            $http({
+            promise = $http({
               method: action.method,
-              url: route.url(extend({}, extractParams(data, paramDefaults, action.params || {}), params)),
+              url: url,
               data: data,
               headers: extend({}, action.headers || {})
-            }).then(function(response) {
-              var data = response.data;
+            });
 
-              if (data) {
-                if (action.collection) {
-                  value.length = 0;
-                  forEach(data, function(item) {
-                    value.push(new Resource(item));
-                  });
-                } else {
-                  copy(data, value);
-                }
-              }
-              success(value, response.headers);
-            }, error);
-
-            return value;
+            return processResponse(promise, Resource, Resource.config);
           };
 
-          Resource.prototype['$' + name] = function(args) {
-            args = args || {};
-            var params = args.params || extractParams(this, paramDefaults),
-                success = args.success || noop,
-                error = args.error,
-                data = hasBody ? serializer(this, options) : undefined;
-            Resource[name].call(this, { params: params, data: data, success: success, error: error });
+          Resource.prototype['$' + name] = function(params) {
+            params = extractParams(this, paramDefaults, params || {});
+            var data = callInterceptors(Resource.config.serializers, this, Resource.config),
+                url = route.url(params),
+                promise;
+
+            promise = $http({
+              method: action.method,
+              url: url,
+              data: data,
+              headers: extend({}, action.headers || {})
+            });
+
+            return processResponse(promise, Resource, Resource.config);
           };
 
         });
