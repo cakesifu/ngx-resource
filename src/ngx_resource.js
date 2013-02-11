@@ -60,10 +60,12 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
         return data;
       }
 
-      function processResponse(promise, Resource, config) {
+      function processResponse(promise, Resource, instance) {
         return promise.then(function(response) {
+          response.originalData = response.data;
+          response = callInterceptors(Resource.config.deserializers, response, Resource.config);
           var result,
-              data = callInterceptors(config.deserializers, response.data, config);
+              data = response.data;
 
           if (isArray(data)) {
             result = [];
@@ -72,7 +74,12 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
               result.push(new Resource(value));
             });
           } else if (isObject(data)) {
-            result = new Resource(data);
+            if (instance) {
+              result = instance;
+              extend(instance, data);
+            } else {
+              result = new Resource(data);
+            }
           } else {
             result = data;
           }
@@ -106,12 +113,16 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
 
         angular.forEach(actions, function(action, name) {
           action.method = angular.uppercase(action.method);
+          var hasBody = (typeof action.body !== "undefined")
+                      ? action.body
+                      : (action.method == "POST" || action.method == "PUT");
 
           Resource[name] = function(params, data) {
             data = data || {};
             params = extractParams(data, paramDefaults, action.params || {}, params || {})
 
             var url = route.url(params),
+                self = this,
                 promise;
 
             promise = $http({
@@ -121,14 +132,20 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
               headers: extend({}, action.headers || {})
             });
 
-            return processResponse(promise, Resource, Resource.config);
+            return processResponse(promise, Resource, null).then(function(response) {
+              extend(self, response);
+              return response;
+            });
           };
 
           Resource.prototype['$' + name] = function(params) {
             params = extractParams(this, paramDefaults, params || {});
-            var data = callInterceptors(Resource.config.serializers, this, Resource.config),
-                url = route.url(params),
-                promise;
+            var url = route.url(params),
+                data, promise;
+
+            if (hasBody) {
+              data = callInterceptors(Resource.config.serializers, this, Resource.config);
+            }
 
             promise = $http({
               method: action.method,
@@ -137,7 +154,7 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
               headers: extend({}, action.headers || {})
             });
 
-            return processResponse(promise, Resource, Resource.config);
+            return processResponse(promise, Resource, this);
           };
 
         });

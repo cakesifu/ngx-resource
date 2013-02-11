@@ -1,9 +1,11 @@
 "use strict";
 angular.module('ngxRoute', []).factory('Route', function() {
 
-  var forEach = angular.forEach;
+  var forEach = angular.forEach,
+      isArray = angular.isArray,
+      isObject = angular.isObject;
 
-  /**
+    /**
      * We need our custom method because encodeURIComponent is too aggressive and doesn't follow
      * http://www.ietf.org/rfc/rfc3986.txt with regards to the character set (pchar) allowed in path
      * segments:
@@ -42,6 +44,19 @@ angular.module('ngxRoute', []).factory('Route', function() {
         replace((pctEncodeSpaces ? null : /%20/g), '+');
     }
 
+    function buildQuery(value, prefix) {
+      var out = [];
+      if (isArray(value) || isObject(value)) {
+        forEach(value, function(v, k) {
+          var newPrefix = prefix ? prefix + '[' + (isArray(value) ? '' : k) + ']' : k;
+          out = out.concat(buildQuery(v, newPrefix));
+        });
+      } else {
+        out.push(encodeUriQuery(prefix) + '=' + encodeUriQuery(value));
+      }
+      return out;
+    }
+
     function Route(template, defaults) {
       this.template = template = template + '#';
       this.defaults = defaults || {};
@@ -51,6 +66,7 @@ angular.module('ngxRoute', []).factory('Route', function() {
           urlParams[param] = true;
         }
       });
+
       this.template = template.replace(/\\:/g, ':');
     }
 
@@ -64,22 +80,25 @@ angular.module('ngxRoute', []).factory('Route', function() {
         params = params || {};
         forEach(this.urlParams, function(_, urlParam){
           val = params.hasOwnProperty(urlParam) ? params[urlParam] : self.defaults[urlParam];
-          if (angular.isDefined(val) && val !== null) {
+          if (angular.isDefined(val) && val !== null && !isObject(val) && !isArray(val)) {
             encodedVal = encodeUriSegment(val);
             url = url.replace(new RegExp(":" + urlParam + "(\\W)", "g"), encodedVal + "$1");
           } else {
             url = url.replace(new RegExp("/?:" + urlParam + "(\\W)", "g"), '$1');
           }
         });
-        url = url.replace(/\/?#$/, '');
-        var query = [];
+
+        var serializeableParams = {};
+
         forEach(params, function(value, key){
           if (!self.urlParams[key]) {
-            query.push(encodeUriQuery(key) + '=' + encodeUriQuery(value));
+            serializeableParams[key] = value;
           }
         });
-        query.sort();
-        url = url.replace(/\/*$/, '');
+
+        var query = buildQuery(serializeableParams);
+
+        url = url.replace(/\/?#$/, '').replace(/\/*$/, '');
         return url + (query.length ? '?' + query.join('&') : '');
       }
     };
