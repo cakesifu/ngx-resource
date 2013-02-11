@@ -54,7 +54,9 @@ Phone.featured();   // GET /phones/featured
 ```
 
 # Interceptors
-ngxResource allows you to register interceptors which are functions or services that can process data before sending it to server (serializers) and after receiving it from server (deserializers)
+ngxResource allows you to register interceptors which are functions or services that can
+process data before sending it to server (serializers) and after receiving it from server
+(deserializers)
 
 ```javascript
 function fooWrapper(data, config) {
@@ -74,9 +76,40 @@ TODO: explain how to register global interceptors
 
 # Promises
 
-TODO: explain how to use promises
+Every call to a resource method will return a promise object. Angular docs have a great explanation
+on [promises](http://docs.angularjs.org/api/ng.$q).
+
+```javascript
+var Phone = $resource("/phones");
+Phone.get().then(function(phone) {
+  console.log(phone instanceof Phone);  // true
+});
+```
+
+The templating engine will recognize the promise so you can assign it to the scope and use it in
+your views
+
+```javascript
+function PhonesController($scope, Phone) {
+  $scope.phones = Phone.query();
+}
+```
+
+```html
+<ul ng-controller="PhonesController">
+  <li ng-repeat="phone in phones">{{phone.name}}</li>
+</ul>
+```
 
 # Global configuration
 
-TODO: explain how to configure the provider to change global defaults
+
+ngxResource can be configured
+
+```javascript
+angular.module("myModule", ["ng", "ngxResource"]).
+        config(function($resourceProvider){
+          // $resourceProvider.config...
+        });
+```
 

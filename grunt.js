@@ -19,7 +19,7 @@ module.exports = function(grunt) {
     },
     concat: {
       dist: {
-        src: ['<banner:meta.banner>', '<file_strip_banner:src/ngx_resource.js>'],
+        src: ['<banner:meta.banner>', '<file_strip_banner:src/ngx_resource.js>', '<file_strip_banner:src/ngx_route.js>', '<file_strip_banner:src/ngx_interceptors.js>'],
         dest: 'dist/<%= pkg.name %>.js'
       }
     },
