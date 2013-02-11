@@ -1,3 +1,6 @@
+/*! ngxResource - v0.1.0 - 2013-02-11
+* Copyright (c) 2013 Cezar Berea <berea.cezar@gmail.com>; Licensed MIT */
+
 'use strict';
 
 angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).

@@ -1,4 +1,5 @@
 "use strict";
+
 angular.module('ngxRoute', []).factory('Route', function() {
 
   var forEach = angular.forEach,
