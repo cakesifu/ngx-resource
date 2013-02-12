@@ -89,32 +89,31 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
 
         var url = options.url || options,
             route = new Route(url),
-            actions = extend({}, providerConfig.actions, options.actions || {}),
-            paramDefaults = options.params || {};
+            actions = options.actions = extend({}, providerConfig.actions, options.actions),
+            config;
+
+        if (isDefined(options.extraHeaders)) {
+          options.headers = extend(options.headers || {}, providerConfig.headers, options.extraHeaders);
+        }
+        options.params = extend({}, providerConfig.params, options.params);
 
         function Resource(value) {
           copy(value || {}, this);
         }
 
-        if (isDefined(options.actions)) {
-          options.actions = extend({}, providerConfig.actions, options.actions);
-        }
-
-        if (isDefined(options.extraHeaders)) {
-          options.headers = extend(options.headers || {}, providerConfig.headers, options.extraHeaders);
-        }
-
-        Resource.config = extend({}, providerConfig, options);
+        Resource.config = config = extend({}, providerConfig, options);
 
         angular.forEach(actions, function(action, name) {
+
           action.method = angular.uppercase(action.method);
+
           var hasBody = (typeof action.body !== "undefined")
                       ? action.body
-                      : (action.method == "POST" || action.method == "PUT");
+                      : (action.method === "POST" || action.method === "PUT");
 
           Resource[name] = function(params, data) {
             data = data || {};
-            params = extractParams(data, paramDefaults, action.params || {}, params || {})
+            params = extractParams(data, config.params, action.params, params);
 
             var url = route.url(params),
                 self = this,
@@ -134,7 +133,7 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
           };
 
           Resource.prototype['$' + name] = function(params) {
-            params = extractParams(this, paramDefaults, params || {});
+            params = extractParams(this, config.params, action.params, params);
             var url = route.url(params),
                 data, promise;
 

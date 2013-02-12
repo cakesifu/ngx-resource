@@ -133,7 +133,7 @@ describe "Resource", ->
     Resource.conditionalPut( foo: 'bar' );
 
   it 'should not pass default params between actions', ->
-    R = $resource(
+    Resource = $resource(
       url: '/path',
       params: {},
       actions:
@@ -143,5 +143,21 @@ describe "Resource", ->
     $httpBackend.expect('GET', '/path?foo=bar').respond('')
     $httpBackend.expect('GET', '/path').respond('')
 
-    R.get()
-    R.perform()
+    Resource.get()
+    Resource.perform()
+
+  it "should allow custom actions to have default parameters", ->
+    Resource = $resource(
+      url: "/path/:id/:action",
+      params:
+        id: '@id'
+      actions:
+        test: { method: 'PUT', params: { action: 'test' } }
+    )
+
+    $httpBackend.expect('PUT', '/path/test').respond('')
+    Resource.test()
+
+    $httpBackend.expect('PUT', '/path/2/test').respond('')
+    resource = new Resource(id: 2)
+    resource.$test()
