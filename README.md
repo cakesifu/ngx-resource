@@ -72,6 +72,29 @@ var Phone = $resource({
 myPhone.$save();      // POST /phones/5  foo[id]=5&foo[name]=GalaxyS3
 ```
 
+Deserializers have the added ability to pass metadata from the response to the resource.
+
+```javascript
+var metadataDeserializer = function() {
+  return function(response) {
+    var fooHeader;
+    if (fooHeader = response.headers("foo")) {
+      response.metadata.foo = fooHeader;
+    }
+    return response;
+  }
+}
+
+Resource = new $resource({
+  url: "/path",
+  deserializers: [metadataDeserializer]
+});
+
+Resource.query().then(function(response){
+  response.foo;   // the value of the HTTP header named "foo" in the HTTP response
+});
+```
+
 TODO: explain how to register global interceptors
 
 # Promises

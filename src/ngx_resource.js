@@ -58,6 +58,7 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
       function processResponse(promise, Resource, instance) {
         return promise.then(function(response) {
           response.originalData = response.data;
+          response.metadata = {};
           response = callInterceptors(Resource.config.deserializers, response, Resource.config);
           var result,
               data = response.data;
@@ -68,15 +69,20 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
             angular.forEach(data, function (value) {
               result.push(new Resource(value));
             });
-          } else if (isObject(data)) {
-            if (instance) {
-              result = instance;
-              extend(instance, data);
+
+            angular.extend(result, response.metadata);
+
+          } else{
+            if (isObject(data)) {
+              if (instance) {
+                result = instance;
+                extend(instance, data);
+              } else {
+                result = new Resource(data);
+              }
             } else {
-              result = new Resource(data);
+              result = data;
             }
-          } else {
-            result = data;
           }
 
           return result;

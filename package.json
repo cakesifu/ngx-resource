@@ -2,7 +2,7 @@
   "name": "ngxResource",
   "description": "An extended version of the angular ngResource component",
   "author": "Cezar Berea <berea.cezar@gmail.com>",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scripts": {
     "test": "testacular start"
   },

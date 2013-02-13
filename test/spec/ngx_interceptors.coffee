@@ -23,7 +23,9 @@ angular.module("ngxInterceptors").
         );
 
 describe "Resource", ->
+
   context "interceptors", ->
+
     $resource = $httpBackend = $rootScope = undefined
 
     beforeEach module 'ngxResource'
@@ -91,4 +93,21 @@ describe "Resource", ->
         response.should.eql kung: 'pow'
         done()
 
+      $httpBackend.flush()
+
+    it "should pass metadata from deserializer to collections", (done) ->
+      metadataDeserializer = ->
+        (response) ->
+          response.metadata.foo = "bar"
+          return response
+
+      Resource = new $resource(
+        url: "/path"
+        deserializers: [metadataDeserializer]
+      )
+
+      $httpBackend.expect("GET", "/path").respond([]);
+      Resource.get().then (response) ->
+        response.foo.should.equal "bar"
+        done()
       $httpBackend.flush()
