@@ -37,6 +37,9 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
         params = extend.apply(angular, params);
 
         angular.forEach(params, function(value, key){
+          if (value === undefined || value === null) {
+            return;
+          }
           if (isFunction(value)) {
             value = value();
           }
