@@ -1,4 +1,4 @@
-/*! ngxResource - v0.2.0 - 2013-02-13
+/*! ngxResource - v0.2.1 - 2013-02-14
 * Copyright (c) 2013 Cezar Berea <berea.cezar@gmail.com>; Licensed MIT */
 
 'use strict';
@@ -40,6 +40,9 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
         params = extend.apply(angular, params);
 
         angular.forEach(params, function(value, key){
+          if (value === undefined || value === null) {
+            return;
+          }
           if (isFunction(value)) {
             value = value();
           }
