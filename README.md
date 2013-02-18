@@ -54,12 +54,13 @@ Phone.featured();   // GET /phones/featured
 ```
 
 # Interceptors
+
 ngxResource allows you to register interceptors which are functions or services that can
-process data before sending it to server (serializers) and after receiving it from server
-(deserializers)
+process data before sending it to server (serializers) after receiving it from server
+(deserializers) or after creating the resource objects (initializers)
 
 ```javascript
-function fooWrapper(data, config) {
+function fooWrapper(data, context) {
   return { foo: data }
 }
 
@@ -72,22 +73,22 @@ var Phone = $resource({
 myPhone.$save();      // POST /phones/5  foo[id]=5&foo[name]=GalaxyS3
 ```
 
-Deserializers have the added ability to pass metadata from the response to the resource.
+Initializers and deserializers have access to the http response object:
 
 ```javascript
-var metadataDeserializer = function() {
-  return function(response) {
+var headerParser = function() {
+  return function(resource, context) {
     var fooHeader;
-    if (fooHeader = response.headers("foo")) {
-      response.metadata.foo = fooHeader;
+    if (fooHeader = context.response.headers("foo")) {
+      resource.foo = fooHeader;
     }
-    return response;
+    return resource;
   }
 }
 
 Resource = new $resource({
   url: "/path",
-  deserializers: [metadataDeserializer]
+  initializers: [headerParser]
 });
 
 Resource.query().then(function(response){

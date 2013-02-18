@@ -1,4 +1,4 @@
-/*! ngxResource - v0.2.1 - 2013-02-14
+/*! ngxResource - v0.3.0 - 2013-02-18
 * Copyright (c) 2013 Cezar Berea <berea.cezar@gmail.com>; Licensed MIT */
 
 'use strict';
@@ -17,7 +17,8 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
       },
       headers: {},
       serializers: [],
-      deserializers: []
+      deserializers: [],
+      initializers: []
     };
 
     this.$get = ['$http', '$parse', '$injector', 'Route', function($http, $parse, $injector, Route) {
@@ -52,22 +53,22 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
         return ids;
       }
 
-      function callInterceptors(interceptors, data, config) {
+      function callInterceptors(interceptors, data, context) {
         angular.forEach(interceptors, function (interceptor) {
           var interceptorFunc =  angular.isString(interceptor) ? $injector.get(interceptor)
                                                                : $injector.invoke(interceptor);
-          data = interceptorFunc(data, config)
+          data = interceptorFunc(data, context);
         });
         return data;
       }
 
       function processResponse(promise, Resource, instance) {
         return promise.then(function(response) {
-          response.originalData = response.data;
-          response.metadata = {};
-          response = callInterceptors(Resource.config.deserializers, response, Resource.config);
-          var result,
-              data = response.data;
+          var data = callInterceptors(
+                Resource.config.deserializers,
+                response.data,
+                { config: Resource.config, response: response }
+              ), result;
 
           if (isArray(data)) {
             result = [];
@@ -75,8 +76,6 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
             angular.forEach(data, function (value) {
               result.push(new Resource(value));
             });
-
-            angular.extend(result, response.metadata);
 
           } else{
             if (isObject(data)) {
@@ -90,6 +89,12 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
               result = data;
             }
           }
+
+          result = callInterceptors(
+              Resource.config.initializers,
+              result,
+              { response: response, config: Resource.config }
+          );
 
           return result;
         });
@@ -147,18 +152,22 @@ angular.module('ngxResource', ['ng', 'ngxRoute', 'ngxInterceptors']).
           Resource.prototype['$' + name] = function(params) {
             params = extractParams(this, config.params, action.params, params);
             var url = route.url(params),
-                data, promise;
+                request = {
+                  method: action.method,
+                  url: url,
+                  headers: extend({}, action.headers || {})
+                },
+                promise;
 
             if (hasBody) {
-              data = callInterceptors(Resource.config.serializers, this, Resource.config);
+              request.data = callInterceptors(
+                  Resource.config.serializers,
+                  this,
+                  { config: Resource.config, request: request }
+              );
             }
 
-            promise = $http({
-              method: action.method,
-              url: url,
-              data: data,
-              headers: extend({}, action.headers || {})
-            });
+            promise = $http(request);
 
             return processResponse(promise, Resource, this);
           };
@@ -178,7 +187,9 @@ angular.module('ngxRoute', []).factory('Route', function() {
 
   var forEach = angular.forEach,
       isArray = angular.isArray,
-      isObject = angular.isObject;
+      isObject = angular.isObject,
+      isFunction = angular.isFunction,
+      isUndefined = angular.isUndefined;
 
     /**
      * We need our custom method because encodeURIComponent is too aggressive and doesn't follow
@@ -226,7 +237,10 @@ angular.module('ngxRoute', []).factory('Route', function() {
           var newPrefix = prefix ? prefix + '[' + (isArray(value) ? '' : k) + ']' : k;
           out = out.concat(buildQuery(v, newPrefix));
         });
-      } else {
+      } else if (!isFunction(value)) {
+        if (isUndefined(value) || value === null) {
+          value = '';
+        }
         out.push(encodeUriQuery(prefix) + '=' + encodeUriQuery(value));
       }
       return out;
