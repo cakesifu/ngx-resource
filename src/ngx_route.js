@@ -4,7 +4,9 @@ angular.module('ngxRoute', []).factory('Route', function() {
 
   var forEach = angular.forEach,
       isArray = angular.isArray,
-      isObject = angular.isObject;
+      isObject = angular.isObject,
+      isFunction = angular.isFunction,
+      isUndefined = angular.isUndefined;
 
     /**
      * We need our custom method because encodeURIComponent is too aggressive and doesn't follow
@@ -52,7 +54,10 @@ angular.module('ngxRoute', []).factory('Route', function() {
           var newPrefix = prefix ? prefix + '[' + (isArray(value) ? '' : k) + ']' : k;
           out = out.concat(buildQuery(v, newPrefix));
         });
-      } else {
+      } else if (!isFunction(value)) {
+        if (isUndefined(value) || value === null) {
+          value = '';
+        }
         out.push(encodeUriQuery(prefix) + '=' + encodeUriQuery(value));
       }
       return out;

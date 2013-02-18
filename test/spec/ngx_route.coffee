@@ -24,6 +24,8 @@ describe "Resource", ->
   it "should only allow scalar values as segments", ->
     route = new Route("/path/:foo")
     route.url(foo: { bar: 'baz' }).should.equal "/path"
+    route.url(foo: null).should.equal "/path"
+    route.url(foo: undefined).should.equal "/path"
 
   it "should append unknown params as query string", ->
     route = new Route("/path/:foo")
@@ -57,3 +59,17 @@ describe "Resource", ->
 
     expectedUrl = "/path?foo%5Bbar%5D=bar&foo%5Bbaz%5D%5B%5D=b&foo%5Bbaz%5D%5B%5D=az&arr%5B%5D=2&arr%5B%5D=3&arr%5B%5D=4"
     route.url(foo: { bar: 'bar', baz: ['b', 'az'] }, arr: [2,3,4]).should.equal expectedUrl
+
+  it "should ignore functions", ->
+    route = new Route("/path")
+    params = {
+      foo: (stuff) ->
+        console.log(stuff)
+      bar: 123
+    }
+    route.url(params).should.equal "/path?bar=123"
+
+  it "should handle null, undefined and boolean values", ->
+    route = new Route("/path")
+    route.url(foo: null, bar: undefined).should.equal "/path?foo=&bar="
+    route.url(foo: true, bar: false).should.equal "/path?foo=true&bar=false"
